@@ -36,7 +36,11 @@ public class GameRepository
         var game = await _context.Games.FindAsync(id);
         if (game == null) return (null, null);
 
-        var promo = await _context.Promotions.Where(p => p.GameId == game.Id && p.StartDate <= DateTime.UtcNow && p.EndDate >= DateTime.UtcNow).OrderByDescending(p => p.DiscountPercentage).FirstOrDefaultAsync();
+        var now = DateTime.UtcNow;
+        var promo = await _context.Promotions
+            .Where(p => p.GameId == game.Id && p.StartDate <= now && p.EndDate >= now)
+            .OrderByDescending(p => p.DiscountPercentage)
+            .FirstOrDefaultAsync();
         return (game, promo);
     }
 }
