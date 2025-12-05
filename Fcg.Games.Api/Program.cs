@@ -67,9 +67,15 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 });
 
-// Configure Postgres (Neon) connection - configurable via connection string GamesConnection
-var connectionString = builder.Configuration.GetConnectionString("GamesConnection") ?? builder.Configuration["POSTGRES_CONNECTION"] ?? "Host=localhost;Database=games;Username=postgres;Password=postgres";
-builder.Services.AddDbContext<GamesDbContext>(options => options.UseNpgsql(connectionString));
+// Configure Postgres: prefer DefaultConnection (Neon/Azure) then GamesConnection, env var POSTGRES_CONNECTION, then local fallback
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? builder.Configuration.GetConnectionString("GamesConnection")
+    ?? builder.Configuration["POSTGRES_CONNECTION"]
+    ?? "Host=localhost;Database=games;Username=postgres;Password=postgres";
+
+builder.Services.AddDbContext<GamesDbContext>(options =>
+    options.UseNpgsql(connectionString, npgsqlOptions => npgsqlOptions.EnableRetryOnFailure())
+);
 
 // Add repositories and clients
 builder.Services.AddScoped<GameRepository>();
