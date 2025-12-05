@@ -9,6 +9,9 @@ using Fcg.Games.Api.Data;
 using Fcg.Games.Api.Models;
 using Fcg.Games.Api.Repositories;
 using Fcg.Games.Api.Services;
+using Microsoft.AspNetCore.Authentication;
+using System.Security.Claims;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,35 +40,53 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Allow disabling real JWT for local testing (set DisableJwt=true in appsettings or environment)
+var disableJwt = builder.Configuration.GetValue<bool>("DisableJwt");
+
 // JWT defaults
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "very-strong-default-key-change-me";
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "fcg";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "fcg-audience";
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
-builder.Services.AddAuthentication(options =>
+if (!disableJwt)
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
+    builder.Services.AddAuthentication(options =>
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtIssuer,
-        ValidAudience = jwtAudience,
-        IssuerSigningKey = signingKey
-    };
-});
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    }).AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = signingKey
+        };
+    });
 
-// Require authentication by default
-builder.Services.AddAuthorization(options =>
+    // Require authentication by default
+    builder.Services.AddAuthorization(options =>
+    {
+        options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+    });
+}
+else
 {
-    options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
-});
+    // Register a simple test auth scheme that authenticates every request as Admin for local testing
+    builder.Services.AddAuthentication("TestScheme")
+        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("TestScheme", _ => { });
+
+    builder.Services.AddAuthorization(options =>
+    {
+        // Fallback allows authenticated user (our test handler will always succeed)
+        options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+    });
+}
 
 // Configure Postgres: prefer DefaultConnection (Neon/Azure) then GamesConnection, env var POSTGRES_CONNECTION, then local fallback
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -282,3 +303,23 @@ record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 }
 
 enum GenreEnum { Acao = 1, Aventura = 2 }
+
+// Simple test auth handler used when DisableJwt=true to authenticate all requests as Admin
+public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    public TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, System.Text.Encodings.Web.UrlEncoder encoder, ISystemClock clock)
+        : base(options, logger, encoder, clock) { }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[] {
+            new Claim(ClaimTypes.NameIdentifier, "test-user"),
+            new Claim(ClaimTypes.Name, "test-user"),
+            new Claim(ClaimTypes.Role, "Admin")
+        };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, "TestScheme");
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
