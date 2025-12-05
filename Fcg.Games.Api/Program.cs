@@ -136,7 +136,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Map endpoints (preserve all endpoints from original project)
-app.MapGet("/", () => "Games microservice running with DB");
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 
 app.MapGet("/api/games/{id}", async (Guid id, GameRepository repo) =>
@@ -270,37 +269,13 @@ app.MapDelete("/api/promotions/{id}", async (Guid id, PromotionRepository repo) 
 
 app.MapControllers();
 
-// Original endpoints
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
 app.Run();
 
-// Records
+// Records used by API
 record CreateGameRequest(string Title, string Description, decimal Price, GenreEnum Genre);
 record BuyRequest(Guid UserId, IEnumerable<Guid> GamesIds);
 record CreateGenreRequest(int Id, string Name);
 record CreatePromotionRequest(Guid GameId, decimal DiscountPercentage, DateTime StartDate, DateTime EndDate);
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
 
 enum GenreEnum { Acao = 1, Aventura = 2 }
 
