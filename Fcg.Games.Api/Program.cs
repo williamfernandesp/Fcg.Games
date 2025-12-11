@@ -210,30 +210,6 @@ app.MapDelete("/api/games/{id}", async (Guid id, GameRepository repo) =>
     return deleted ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization(new AuthorizationPolicyBuilder().RequireRole("Admin").Build());
 
-app.MapPost("/api/games/buy", async (BuyRequest req, GameRepository repo, PaymentClient paymentClient, UserClient userClient) =>
-{
-    if (req.GamesIds == null || !req.GamesIds.Any()) return Results.BadRequest(new { Message = "No games specified" });
-
-    var games = (await repo.GetGamesByIdsAsync(req.GamesIds)).ToList();
-    if (games.Count != req.GamesIds.Count()) return Results.NotFound(new { Message = "Some games not found" });
-
-    decimal total = games.Sum(g => g.Price);
-
-    var paymentResult = await paymentClient.ProcessPaymentAsync(req.UserId, total);
-    if (!paymentResult.Success) return Results.Json(new { Message = "Payment processing failed", Detail = paymentResult.Error }, statusCode: 502);
-
-    foreach (var game in games)
-    {
-        var addResult = await userClient.AddGameToUserLibraryAsync(req.UserId, game.Id);
-        if (!addResult.Success)
-        {
-            return Results.Json(new { Message = "Failed to update user library", Detail = addResult.Error }, statusCode: 502);
-        }
-    }
-
-    return Results.Ok(new { PaymentTransactionId = paymentResult.TransactionId, Total = total });
-}).RequireAuthorization();
-
 // Genres endpoints
 app.MapPost("/api/genres", async (CreateGenreRequest req, GenreRepository repo) =>
 {
