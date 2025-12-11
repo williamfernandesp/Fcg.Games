@@ -29,8 +29,7 @@ public class GameRepository
         }
         catch (Exception ex)
         {
-            // log but don't fail creation
-            // if ILogger were available we would use it; swallow for now
+            
         }
 
         return game;
@@ -49,14 +48,13 @@ public class GameRepository
         _context.Games.Remove(game);
         await _context.SaveChangesAsync();
 
-        // delete from elastic index
         try
         {
             await _elastic.DeleteGameAsync(id);
         }
         catch (Exception)
         {
-            // swallow; deletion from DB succeeded
+
         }
 
         return true;
@@ -75,7 +73,7 @@ public class GameRepository
         return (game, promo);
     }
 
-    // New: search using Elastic, enriched with active promotions from DB
+
     public async Task<IEnumerable<object>> SearchAsync(string q)
     {
         var hits = (await _elastic.SearchGamesAsync(q)).ToList();
@@ -92,7 +90,6 @@ public class GameRepository
             }
         }
 
-        // Get active promotions for these games
         var promos = ids.Any() ? (await _promotionRepo.GetActivePromotionsForGamesAsync(ids)).ToList() : new List<Promotion>();
 
         var results = new List<object>();

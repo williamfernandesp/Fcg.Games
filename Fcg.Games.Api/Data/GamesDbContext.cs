@@ -15,7 +15,7 @@ public class GamesDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Configure Promotion dates precision and indexes
+        // Configurar precisão das datas de promoção e índices
         modelBuilder.Entity<Promotion>().HasIndex(p => p.GameId);
     }
 }

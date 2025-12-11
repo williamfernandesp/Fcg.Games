@@ -259,9 +259,9 @@ app.MapDelete("/api/genres/{id}", async (int id, GenreRepository repo) =>
 // Promotions
 app.MapPost("/api/promotions", async (CreatePromotionRequest req, PromotionRepository repo) =>
 {
-    if (req.GameId == Guid.Empty) return Results.BadRequest(new { Message = "GameId is required" });
-    if (req.DiscountPercentage <= 0 || req.DiscountPercentage >= 100) return Results.BadRequest(new { Message = "DiscountPercentage must be between 0 and 100" });
-    if (req.EndDate <= req.StartDate) return Results.BadRequest(new { Message = "EndDate must be after StartDate" });
+    if (req.GameId == Guid.Empty) return Results.BadRequest(new { Message = "GameId é requerido" });
+    if (req.DiscountPercentage <= 0 || req.DiscountPercentage >= 100) return Results.BadRequest(new { Message = "Procentagem de desconto deve ser entre 0 e 100" });
+    if (req.EndDate <= req.StartDate) return Results.BadRequest(new { Message = "Data final deve ser depois de data inicial" });
 
     var promo = new Promotion { Id = Guid.NewGuid(), GameId = req.GameId, DiscountPercentage = req.DiscountPercentage, StartDate = req.StartDate.ToUniversalTime(), EndDate = req.EndDate.ToUniversalTime() };
     var created = await repo.CreateAsync(promo);

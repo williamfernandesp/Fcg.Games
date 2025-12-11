@@ -10,7 +10,5 @@ public class Promotion
     public decimal DiscountPercentage { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
-
-    // Not mapped computed property
     public bool IsActive => DateTime.UtcNow >= StartDate && DateTime.UtcNow <= EndDate;
 }

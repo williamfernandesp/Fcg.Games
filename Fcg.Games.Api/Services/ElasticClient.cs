@@ -58,7 +58,7 @@ public class ElasticClientService
         if (!resp.IsSuccessStatusCode)
         {
             var text = await resp.Content.ReadAsStringAsync();
-            _logger.LogWarning("Failed to index game {Id} in elastic: {Status} {Body}", game.Id, resp.StatusCode, text);
+            _logger.LogWarning("Falhou em indexar o jogo {Id} no elastic: {Status} {Body}", game.Id, resp.StatusCode, text);
         }
     }
 
@@ -75,12 +75,12 @@ public class ElasticClientService
                 var text = await resp.Content.ReadAsStringAsync();
                 // 404 is fine (document already missing), log other failures
                 if (resp.StatusCode != System.Net.HttpStatusCode.NotFound)
-                    _logger.LogWarning("Failed to delete game {Id} from elastic: {Status} {Body}", id, resp.StatusCode, text);
+                    _logger.LogWarning("Falhou em deletar game {Id} no elastic: {Status} {Body}", id, resp.StatusCode, text);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error deleting game {Id} from elastic", id);
+            _logger.LogWarning(ex, "Erro deletando jogo {Id} no elastic", id);
         }
     }
 
@@ -113,12 +113,12 @@ public class ElasticClientService
             if (!createRes.IsSuccessStatusCode)
             {
                 var t = await createRes.Content.ReadAsStringAsync();
-                _logger.LogWarning("Failed to create index {Index}: {Status} {Body}", indexName, createRes.StatusCode, t);
+                _logger.LogWarning("Falhou em criar indice {Index}: {Status} {Body}", indexName, createRes.StatusCode, t);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error ensuring index");
+            _logger.LogWarning(ex, "Erro certificando indice");
         }
     }
 
@@ -164,7 +164,6 @@ public class ElasticClientService
             {
                 if (h.TryGetProperty("_source", out var src))
                 {
-                    // Clone element to detach from the parsed JsonDocument (avoids ObjectDisposedException when outer doc is disposed)
                     results.Add(src.Clone());
                 }
             }
@@ -172,7 +171,7 @@ public class ElasticClientService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error searching elastic");
+            _logger.LogWarning(ex, "Erro procurando elastic");
             return Enumerable.Empty<JsonElement>();
         }
     }

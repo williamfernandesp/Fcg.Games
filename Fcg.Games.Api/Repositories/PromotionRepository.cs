@@ -21,7 +21,6 @@ public class PromotionRepository
 
     public async Task<IEnumerable<Promotion>> GetActivePromotionsForGamesAsync(IEnumerable<Guid> gameIds)
     {
-        // Capture UtcNow in a local variable so EF Core can translate the comparison to SQL
         var now = DateTime.UtcNow;
         return await _context.Promotions
             .Where(p => gameIds.Contains(p.GameId) && p.StartDate <= now && p.EndDate >= now)
