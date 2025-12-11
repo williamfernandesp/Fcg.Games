@@ -123,10 +123,10 @@ public class ElasticClientService
     }
 
     // Search games with fuzzy matching on title and description
-    public async Task<IEnumerable<JsonElement>> SearchGamesAsync(string query, int size = 10)
+    public async Task<IEnumerable<ElasticSearchHit>> SearchGamesAsync(string query, int size = 10)
     {
         var indexName = "games";
-        if (string.IsNullOrWhiteSpace(query)) return Enumerable.Empty<JsonElement>();
+        if (string.IsNullOrWhiteSpace(query)) return Enumerable.Empty<ElasticSearchHit>();
 
         var request = new
         {
@@ -151,20 +151,24 @@ public class ElasticClientService
             {
                 var t = await resp.Content.ReadAsStringAsync();
                 _logger.LogWarning("Elastic search failed: {Status} {Body}", resp.StatusCode, t);
-                return Enumerable.Empty<JsonElement>();
+                return Enumerable.Empty<ElasticSearchHit>();
             }
 
             using var stream = await resp.Content.ReadAsStreamAsync();
             using var doc = await JsonDocument.ParseAsync(stream);
-            if (!doc.RootElement.TryGetProperty("hits", out var hits)) return Enumerable.Empty<JsonElement>();
-            if (!hits.TryGetProperty("hits", out var inner)) return Enumerable.Empty<JsonElement>();
+            if (!doc.RootElement.TryGetProperty("hits", out var hits)) return Enumerable.Empty<ElasticSearchHit>();
+            if (!hits.TryGetProperty("hits", out var inner)) return Enumerable.Empty<ElasticSearchHit>();
 
-            var results = new List<JsonElement>();
+            var results = new List<ElasticSearchHit>();
             foreach (var h in inner.EnumerateArray())
             {
                 if (h.TryGetProperty("_source", out var src))
                 {
-                    results.Add(src.Clone());
+                    double? score = null;
+                    if (h.TryGetProperty("_score", out var s) && s.ValueKind == JsonValueKind.Number && s.TryGetDouble(out var sd))
+                        score = sd;
+
+                    results.Add(new ElasticSearchHit(src.Clone(), score));
                 }
             }
             return results;
@@ -172,7 +176,7 @@ public class ElasticClientService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Erro procurando elastic");
-            return Enumerable.Empty<JsonElement>();
+            return Enumerable.Empty<ElasticSearchHit>();
         }
     }
 }

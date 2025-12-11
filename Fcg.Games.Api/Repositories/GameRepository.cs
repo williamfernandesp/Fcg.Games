@@ -81,8 +81,9 @@ public class GameRepository
 
         // Extract ids from hits
         var ids = new List<Guid>();
-        foreach (var src in hits)
+        foreach (var hit in hits)
         {
+            var src = hit.Source;
             if (src.TryGetProperty("id", out var idProp))
             {
                 string? s = idProp.ValueKind == System.Text.Json.JsonValueKind.String ? idProp.GetString() : idProp.ToString();
@@ -93,8 +94,10 @@ public class GameRepository
         var promos = ids.Any() ? (await _promotionRepo.GetActivePromotionsForGamesAsync(ids)).ToList() : new List<Promotion>();
 
         var results = new List<object>();
-        foreach (var src in hits)
+        foreach (var hit in hits)
         {
+            var src = hit.Source;
+
             Guid? gid = null;
             if (src.TryGetProperty("id", out var idProp))
             {
@@ -152,7 +155,8 @@ public class GameRepository
                 description,
                 price,
                 genre,
-                promotion = promotionObj
+                promotion = promotionObj,
+                score = hit.Score
             });
         }
 
