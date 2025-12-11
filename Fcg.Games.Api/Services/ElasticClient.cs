@@ -179,4 +179,62 @@ public class ElasticClientService
             return Enumerable.Empty<ElasticSearchHit>();
         }
     }
+
+    // Busca aleatória por gênero usando random_score (retorna até 'size' hits)
+    public async Task<IEnumerable<ElasticSearchHit>> GetRandomGamesByGenreAsync(int genre, int size = 5)
+    {
+        var indexName = "games";
+        var request = new
+        {
+            size,
+            query = new
+            {
+                function_score = new
+                {
+                    query = new
+                    {
+                        term = new { genre }
+                    },
+                    random_score = new { seed = DateTime.UtcNow.Ticks & 0x7FFFFFFF }
+                }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(request);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        try
+        {
+            var resp = await _httpClient.PostAsync($"/{indexName}/_search", content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var t = await resp.Content.ReadAsStringAsync();
+                _logger.LogWarning("Elastic random search failed: {Status} {Body}", resp.StatusCode, t);
+                return Enumerable.Empty<ElasticSearchHit>();
+            }
+
+            using var stream = await resp.Content.ReadAsStreamAsync();
+            using var doc = await JsonDocument.ParseAsync(stream);
+            if (!doc.RootElement.TryGetProperty("hits", out var hits)) return Enumerable.Empty<ElasticSearchHit>();
+            if (!hits.TryGetProperty("hits", out var inner)) return Enumerable.Empty<ElasticSearchHit>();
+
+            var results = new List<ElasticSearchHit>();
+            foreach (var h in inner.EnumerateArray())
+            {
+                if (h.TryGetProperty("_source", out var src))
+                {
+                    double? score = null;
+                    if (h.TryGetProperty("_score", out var s) && s.ValueKind == JsonValueKind.Number && s.TryGetDouble(out var sd))
+                        score = sd;
+
+                    results.Add(new ElasticSearchHit(src.Clone(), score));
+                }
+            }
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Erro buscando jogos aleatórios por gênero");
+            return Enumerable.Empty<ElasticSearchHit>();
+        }
+    }
 }

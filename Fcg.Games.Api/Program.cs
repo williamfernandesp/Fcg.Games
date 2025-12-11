@@ -190,6 +190,13 @@ app.MapGet("/api/games/search", async (string name, GameRepository repo) =>
     return Results.Ok(results);
 }).RequireAuthorization();
 
+// Suggest endpoint: receives ?genre=ID and returns 5 random suggestions
+app.MapGet("/api/games/suggest", async (int genre, GameRepository repo) =>
+{
+    var suggestions = await repo.RecommendByGenreAsync(genre, 5);
+    return Results.Ok(suggestions);
+}).RequireAuthorization();
+
 app.MapPost("/api/games", async (CreateGameRequest req, GameRepository repo) =>
 {
     var game = new Game { Id = Guid.NewGuid(), Title = req.Title, Description = req.Description, Price = req.Price, Genre = req.Genre };
