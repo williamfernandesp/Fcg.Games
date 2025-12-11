@@ -47,7 +47,16 @@ public class GameRepository
         _context.Games.Remove(game);
         await _context.SaveChangesAsync();
 
-        // TODO: also delete from elastic index
+        // delete from elastic index
+        try
+        {
+            await _elastic.DeleteGameAsync(id);
+        }
+        catch (Exception)
+        {
+            // swallow; deletion from DB succeeded
+        }
+
         return true;
     }
 

@@ -13,7 +13,18 @@ public class ElasticClientService
     {
         _logger = logger;
 
-        var baseUri = settings.GetBaseUri();
+        // Try to derive base URI from settings; fall back to localhost:9200 when not configured or invalid
+        Uri baseUri;
+        try
+        {
+            baseUri = settings.GetBaseUri();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not derive ElasticSearch URI from settings; falling back to http://localhost:9200");
+            baseUri = new Uri("http://localhost:9200");
+        }
+
         _httpClient = new HttpClient();
         _httpClient.BaseAddress = baseUri;
 
@@ -48,6 +59,28 @@ public class ElasticClientService
         {
             var text = await resp.Content.ReadAsStringAsync();
             _logger.LogWarning("Failed to index game {Id} in elastic: {Status} {Body}", game.Id, resp.StatusCode, text);
+        }
+    }
+
+    // Delete a game document from the index
+    public async Task DeleteGameAsync(Guid id)
+    {
+        if (id == Guid.Empty) return;
+        var indexName = "games";
+        try
+        {
+            var resp = await _httpClient.DeleteAsync($"/{indexName}/_doc/{id}");
+            if (!resp.IsSuccessStatusCode)
+            {
+                var text = await resp.Content.ReadAsStringAsync();
+                // 404 is fine (document already missing), log other failures
+                if (resp.StatusCode != System.Net.HttpStatusCode.NotFound)
+                    _logger.LogWarning("Failed to delete game {Id} from elastic: {Status} {Body}", id, resp.StatusCode, text);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error deleting game {Id} from elastic", id);
         }
     }
 
@@ -129,7 +162,11 @@ public class ElasticClientService
             var results = new List<JsonElement>();
             foreach (var h in inner.EnumerateArray())
             {
-                if (h.TryGetProperty("_source", out var src)) results.Add(src);
+                if (h.TryGetProperty("_source", out var src))
+                {
+                    // Clone element to detach from the parsed JsonDocument (avoids ObjectDisposedException when outer doc is disposed)
+                    results.Add(src.Clone());
+                }
             }
             return results;
         }

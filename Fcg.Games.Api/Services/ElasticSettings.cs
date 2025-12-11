@@ -6,13 +6,24 @@ public class ElasticSettings
 {
     // These properties are bound from configuration (ElasticSettings section)
     public string ApiKey { get; set; } = string.Empty;
+    // CloudId is the Elastic Cloud value (name:base64payload) OR can contain a full URL as fallback
     public string CloudId { get; set; } = string.Empty;
+    // Optional explicit base Url (preferred). Example: "https://my-elasticsearch-project-...:443"
+    public string Url { get; set; } = string.Empty;
 
-    // Try to derive a base URI from the CloudId (Elastic Cloud format: "name:base64payload")
+    // Try to derive a base URI from the Url or CloudId (Elastic Cloud format: "name:base64payload")
     public Uri GetBaseUri()
     {
+        // Prefer explicit Url when provided
+        if (!string.IsNullOrWhiteSpace(Url))
+        {
+            if (Uri.TryCreate(Url, UriKind.Absolute, out var explicitUri))
+                return explicitUri;
+            throw new InvalidOperationException("ElasticSettings.Url is not a valid absolute URI");
+        }
+
         if (string.IsNullOrWhiteSpace(CloudId))
-            throw new InvalidOperationException("CloudId is not configured for ElasticSearch");
+            throw new InvalidOperationException("CloudId or Url must be configured for ElasticSearch");
 
         // If CloudId contains ':', the part after the first ':' is base64 that decodes to "clusterName$esHost$kibanaHost"
         var parts = CloudId.Split(new[] { ':' }, 2);
@@ -43,6 +54,6 @@ public class ElasticSettings
         if (Uri.TryCreate(CloudId, UriKind.Absolute, out var uri))
             return uri;
 
-        throw new InvalidOperationException("Unable to derive ElasticSearch URI from CloudId");
+        throw new InvalidOperationException("Unable to derive ElasticSearch URI from CloudId or Url");
     }
 }
