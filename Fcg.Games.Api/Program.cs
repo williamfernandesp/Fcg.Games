@@ -182,11 +182,11 @@ app.MapGet("/api/games", async (GameRepository repo, PromotionRepository promoRe
 });
 
 // Search endpoint using Elastic (supports fuzzy matching)
-app.MapGet("/api/games/search", async (string q, GameRepository repo) =>
+app.MapGet("/api/games/search", async (string name, GameRepository repo) =>
 {
-    if (string.IsNullOrWhiteSpace(q)) return Results.BadRequest(new { Message = "Query parameter 'q' is required" });
+    if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { Message = "Query parameter 'name' is required" });
 
-    var results = await repo.SearchAsync(q);
+    var results = await repo.SearchAsync(name);
     return Results.Ok(results);
 }).RequireAuthorization();
 
