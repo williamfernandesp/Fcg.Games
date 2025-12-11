@@ -9,10 +9,12 @@ public class GameRepository
 {
     private readonly GamesDbContext _context;
     private readonly ElasticClientService _elastic;
-    public GameRepository(GamesDbContext context, ElasticClientService elastic)
+    private readonly PromotionRepository _promotionRepo;
+    public GameRepository(GamesDbContext context, ElasticClientService elastic, PromotionRepository promotionRepo)
     {
         _context = context;
         _elastic = elastic;
+        _promotionRepo = promotionRepo;
     }
 
     public async Task<Game> CreateAsync(Game game)
@@ -73,6 +75,90 @@ public class GameRepository
         return (game, promo);
     }
 
-    // New: search using Elastic
-    public async Task<IEnumerable<object>> SearchAsync(string q) => (await _elastic.SearchGamesAsync(q)).Cast<object>();
+    // New: search using Elastic, enriched with active promotions from DB
+    public async Task<IEnumerable<object>> SearchAsync(string q)
+    {
+        var hits = (await _elastic.SearchGamesAsync(q)).ToList();
+        if (!hits.Any()) return Enumerable.Empty<object>();
+
+        // Extract ids from hits
+        var ids = new List<Guid>();
+        foreach (var src in hits)
+        {
+            if (src.TryGetProperty("id", out var idProp))
+            {
+                string? s = idProp.ValueKind == System.Text.Json.JsonValueKind.String ? idProp.GetString() : idProp.ToString();
+                if (Guid.TryParse(s, out var gid)) ids.Add(gid);
+            }
+        }
+
+        // Get active promotions for these games
+        var promos = ids.Any() ? (await _promotionRepo.GetActivePromotionsForGamesAsync(ids)).ToList() : new List<Promotion>();
+
+        var results = new List<object>();
+        foreach (var src in hits)
+        {
+            Guid? gid = null;
+            if (src.TryGetProperty("id", out var idProp))
+            {
+                string? s = idProp.ValueKind == System.Text.Json.JsonValueKind.String ? idProp.GetString() : idProp.ToString();
+                if (Guid.TryParse(s, out var g)) gid = g;
+            }
+
+            Promotion? p = null;
+            if (gid.HasValue)
+                p = promos.FirstOrDefault(x => x.GameId == gid.Value);
+
+            // extract fields safely
+            string? idStr = null;
+            if (src.TryGetProperty("id", out var ip))
+            {
+                idStr = ip.ValueKind == System.Text.Json.JsonValueKind.String ? ip.GetString() : ip.ToString();
+            }
+
+            string? title = null;
+            if (src.TryGetProperty("title", out var tp))
+            {
+                title = tp.ValueKind == System.Text.Json.JsonValueKind.String ? tp.GetString() : tp.ToString();
+            }
+
+            string? description = null;
+            if (src.TryGetProperty("description", out var dp))
+            {
+                description = dp.ValueKind == System.Text.Json.JsonValueKind.String ? dp.GetString() : dp.ToString();
+            }
+
+            decimal price = 0m;
+            if (src.TryGetProperty("price", out var pp))
+            {
+                if (pp.ValueKind == System.Text.Json.JsonValueKind.Number && pp.TryGetDecimal(out var pd)) price = pd;
+                else if (pp.ValueKind == System.Text.Json.JsonValueKind.String && decimal.TryParse(pp.GetString(), out var pd2)) price = pd2;
+            }
+
+            int genre = 0;
+            if (src.TryGetProperty("genre", out var gp))
+            {
+                if (gp.ValueKind == System.Text.Json.JsonValueKind.Number && gp.TryGetInt32(out var gi)) genre = gi;
+                else if (gp.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(gp.GetString(), out var gi2)) genre = gi2;
+            }
+
+            object? promotionObj = null;
+            if (p is not null)
+            {
+                var discounted = Math.Round(price * (1 - p.DiscountPercentage / 100m), 2);
+                promotionObj = new { p.Id, p.DiscountPercentage, p.StartDate, p.EndDate, IsActive = p.IsActive, DiscountedPrice = discounted };
+            }
+
+            results.Add(new {
+                id = idStr,
+                title,
+                description,
+                price,
+                genre,
+                promotion = promotionObj
+            });
+        }
+
+        return results;
+    }
 }
