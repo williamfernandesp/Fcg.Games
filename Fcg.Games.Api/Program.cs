@@ -181,6 +181,15 @@ app.MapGet("/api/games", async (GameRepository repo, PromotionRepository promoRe
     return Results.Ok(list);
 });
 
+// Search endpoint using Elastic (supports fuzzy matching)
+app.MapGet("/api/games/search", async (string q, GameRepository repo) =>
+{
+    if (string.IsNullOrWhiteSpace(q)) return Results.BadRequest(new { Message = "Query parameter 'q' is required" });
+
+    var results = await repo.SearchAsync(q);
+    return Results.Ok(results);
+}).RequireAuthorization();
+
 app.MapPost("/api/games", async (CreateGameRequest req, GameRepository repo) =>
 {
     var game = new Game { Id = Guid.NewGuid(), Title = req.Title, Description = req.Description, Price = req.Price, Genre = (int)req.Genre };
