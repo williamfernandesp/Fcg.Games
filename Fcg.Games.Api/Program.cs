@@ -265,6 +265,14 @@ app.MapDelete("/api/promotions/{id}", async (Guid id, PromotionRepository repo) 
     return deleted ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization(new AuthorizationPolicyBuilder().RequireRole("Admin").Build());
 
+// Top searched games endpoint (aggregated from Elastic search-hits index)
+app.MapGet("/api/games/top-searched", async (int? size, GameRepository repo) =>
+{
+    var s = size ?? 10;
+    var results = await repo.GetTopSearchedAsync(s);
+    return Results.Ok(results);
+}).RequireAuthorization();
+
 app.MapControllers();
 
 app.Run();

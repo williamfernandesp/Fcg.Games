@@ -91,6 +91,16 @@ public class GameRepository
             }
         }
 
+        // Log search hits to analytics index
+        try
+        {
+            await _elastic.LogSearchHitsAsync(ids);
+        }
+        catch (Exception ex)
+        {
+            // swallow logging errors
+        }
+
         var promos = ids.Any() ? (await _promotionRepo.GetActivePromotionsForGamesAsync(ids)).ToList() : new List<Promotion>();
 
         var results = new List<object>();
@@ -238,6 +248,44 @@ public class GameRepository
                 price,
                 genre,
                 promotion = promotionObj
+            });
+        }
+
+        return results;
+    }
+
+    // Return top searched games using aggregations from Elastic (search-hits index)
+    public async Task<IEnumerable<object>> GetTopSearchedAsync(int size = 10)
+    {
+        var top = (await _elastic.GetTopSearchedGamesAsync(size)).ToList();
+        if (!top.Any()) return Enumerable.Empty<object>();
+
+        var ids = top.Select(t => t.GameId).ToList();
+        var games = await _context.Games.Where(g => ids.Contains(g.Id)).ToListAsync();
+        var promos = (await _promotionRepo.GetActivePromotionsForGamesAsync(ids)).ToList();
+
+        var results = new List<object>();
+        foreach (var (gid, count) in top)
+        {
+            var game = games.FirstOrDefault(g => g.Id == gid);
+            if (game == null) continue;
+
+            var p = promos.FirstOrDefault(x => x.GameId == gid);
+            object? promotionObj = null;
+            if (p is not null)
+            {
+                var discounted = Math.Round(game.Price * (1 - p.DiscountPercentage / 100m), 2);
+                promotionObj = new { p.Id, p.DiscountPercentage, p.StartDate, p.EndDate, IsActive = p.IsActive, DiscountedPrice = discounted };
+            }
+
+            results.Add(new {
+                id = game.Id,
+                title = game.Title,
+                description = game.Description,
+                price = game.Price,
+                genre = game.Genre,
+                promotion = promotionObj,
+                searches = count
             });
         }
 
