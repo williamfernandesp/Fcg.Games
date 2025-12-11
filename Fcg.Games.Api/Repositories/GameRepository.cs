@@ -1,18 +1,36 @@
 using Fcg.Games.Api.Data;
 using Fcg.Games.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Fcg.Games.Api.Services;
 
 namespace Fcg.Games.Api.Repositories;
 
 public class GameRepository
 {
     private readonly GamesDbContext _context;
-    public GameRepository(GamesDbContext context) => _context = context;
+    private readonly ElasticClientService _elastic;
+    public GameRepository(GamesDbContext context, ElasticClientService elastic)
+    {
+        _context = context;
+        _elastic = elastic;
+    }
 
     public async Task<Game> CreateAsync(Game game)
     {
         _context.Games.Add(game);
         await _context.SaveChangesAsync();
+
+        // Index in elastic
+        try
+        {
+            await _elastic.IndexGameAsync(game);
+        }
+        catch (Exception ex)
+        {
+            // log but don't fail creation
+            // if ILogger were available we would use it; swallow for now
+        }
+
         return game;
     }
 
@@ -28,6 +46,8 @@ public class GameRepository
         if (game == null) return false;
         _context.Games.Remove(game);
         await _context.SaveChangesAsync();
+
+        // TODO: also delete from elastic index
         return true;
     }
 
@@ -43,4 +63,7 @@ public class GameRepository
             .FirstOrDefaultAsync();
         return (game, promo);
     }
+
+    // New: search using Elastic
+    public async Task<IEnumerable<object>> SearchAsync(string q) => (await _elastic.SearchGamesAsync(q)).Cast<object>();
 }

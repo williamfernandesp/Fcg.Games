@@ -19,6 +19,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+// Bind ElasticSettings and register client
+builder.Services.Configure<ElasticSettings>(builder.Configuration.GetSection("ElasticSettings"));
+var esSettings = builder.Configuration.GetSection("ElasticSettings").Get<ElasticSettings>() ?? new ElasticSettings();
+builder.Services.AddSingleton(esSettings);
+builder.Services.AddSingleton<ElasticClientService>();
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Fcg.Games API", Version = "v1" });
