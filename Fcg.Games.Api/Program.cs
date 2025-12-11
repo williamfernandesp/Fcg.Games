@@ -192,7 +192,7 @@ app.MapGet("/api/games/search", async (string name, GameRepository repo) =>
 
 app.MapPost("/api/games", async (CreateGameRequest req, GameRepository repo) =>
 {
-    var game = new Game { Id = Guid.NewGuid(), Title = req.Title, Description = req.Description, Price = req.Price, Genre = (int)req.Genre };
+    var game = new Game { Id = Guid.NewGuid(), Title = req.Title, Description = req.Description, Price = req.Price, Genre = req.Genre };
     var created = await repo.CreateAsync(game);
     return Results.Created($"/api/games/{created.Id}", created);
 }).RequireAuthorization(new AuthorizationPolicyBuilder().RequireRole("Admin").Build());
@@ -287,12 +287,10 @@ app.MapControllers();
 app.Run();
 
 // Records used by API
-record CreateGameRequest(string Title, string Description, decimal Price, GenreEnum Genre);
+record CreateGameRequest(string Title, string Description, decimal Price, int Genre);
 record BuyRequest(Guid UserId, IEnumerable<Guid> GamesIds);
 record CreateGenreRequest(int Id, string Name);
 record CreatePromotionRequest(Guid GameId, decimal DiscountPercentage, DateTime StartDate, DateTime EndDate);
-
-enum GenreEnum { Acao = 1, Aventura = 2 }
 
 // Simple test auth handler used when DisableJwt=true to authenticate all requests as Admin
 public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
