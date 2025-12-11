@@ -180,6 +180,100 @@ public class ElasticClientService
         }
     }
 
+    // Advanced search: Query DSL allowing search by name (multi_match) and optional genre filter
+    public async Task<IEnumerable<ElasticSearchHit>> SearchGamesAdvancedAsync(string? name, int? genre, int size = 10)
+    {
+        var indexName = "games";
+        if (string.IsNullOrWhiteSpace(name) && !genre.HasValue) return Enumerable.Empty<ElasticSearchHit>();
+
+        // Build DSL: if name present use multi_match in must; if genre present add term filter
+        object queryPart;
+        if (!string.IsNullOrWhiteSpace(name) && genre.HasValue)
+        {
+            queryPart = new
+            {
+                @bool = new
+                {
+                    must = new object[] {
+                        new {
+                            multi_match = new {
+                                query = name,
+                                fields = new[] { "title^3", "description" },
+                                fuzziness = "AUTO"
+                            }
+                        }
+                    },
+                    filter = new object[] {
+                        new { term = new { genre = genre.Value } }
+                    }
+                }
+            };
+        }
+        else if (!string.IsNullOrWhiteSpace(name))
+        {
+            queryPart = new
+            {
+                multi_match = new
+                {
+                    query = name,
+                    fields = new[] { "title^3", "description" },
+                    fuzziness = "AUTO"
+                }
+            };
+        }
+        else
+        {
+            // genre only
+            queryPart = new
+            {
+                term = new { genre = genre.Value }
+            };
+        }
+
+        var request = new
+        {
+            size,
+            query = queryPart
+        };
+
+        var json = JsonSerializer.Serialize(request);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        try
+        {
+            var resp = await _httpClient.PostAsync($"/{indexName}/_search", content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var t = await resp.Content.ReadAsStringAsync();
+                _logger.LogWarning("Elastic advanced search failed: {Status} {Body}", resp.StatusCode, t);
+                return Enumerable.Empty<ElasticSearchHit>();
+            }
+
+            using var stream = await resp.Content.ReadAsStreamAsync();
+            using var doc = await JsonDocument.ParseAsync(stream);
+            if (!doc.RootElement.TryGetProperty("hits", out var hits)) return Enumerable.Empty<ElasticSearchHit>();
+            if (!hits.TryGetProperty("hits", out var inner)) return Enumerable.Empty<ElasticSearchHit>();
+
+            var results = new List<ElasticSearchHit>();
+            foreach (var h in inner.EnumerateArray())
+            {
+                if (h.TryGetProperty("_source", out var src))
+                {
+                    double? score = null;
+                    if (h.TryGetProperty("_score", out var s) && s.ValueKind == JsonValueKind.Number && s.TryGetDouble(out var sd))
+                        score = sd;
+
+                    results.Add(new ElasticSearchHit(src.Clone(), score));
+                }
+            }
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Erro procurando elastic (advanced)");
+            return Enumerable.Empty<ElasticSearchHit>();
+        }
+    }
+
     // Busca aleatória por gênero usando random_score (retorna até 'size' hits)
     public async Task<IEnumerable<ElasticSearchHit>> GetRandomGamesByGenreAsync(int genre, int size = 5)
     {

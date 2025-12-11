@@ -181,12 +181,12 @@ app.MapGet("/api/games", async (GameRepository repo, PromotionRepository promoRe
     return Results.Ok(list);
 });
 
-// Search endpoint using Elastic (supports fuzzy matching)
-app.MapGet("/api/games/search", async (string name, GameRepository repo) =>
+// Search endpoint using Elastic (supports fuzzy matching and optional genre filter)
+app.MapGet("/api/games/search", async (string name, int? genre, GameRepository repo) =>
 {
-    if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { Message = "Query parameter 'name' is required" });
+    if (string.IsNullOrWhiteSpace(name) && !genre.HasValue) return Results.BadRequest(new { Message = "Query parameter 'name' or 'genre' is required" });
 
-    var results = await repo.SearchAsync(name);
+    var results = await repo.SearchAsync(name, genre);
     return Results.Ok(results);
 }).RequireAuthorization();
 

@@ -74,9 +74,9 @@ public class GameRepository
     }
 
 
-    public async Task<IEnumerable<object>> SearchAsync(string q)
+    public async Task<IEnumerable<object>> SearchAsync(string q, int? genre = null)
     {
-        var hits = (await _elastic.SearchGamesAsync(q)).ToList();
+        var hits = (await _elastic.SearchGamesAdvancedAsync(q, genre)).ToList();
         if (!hits.Any()) return Enumerable.Empty<object>();
 
         // Extract ids from hits
@@ -135,11 +135,11 @@ public class GameRepository
                 else if (pp.ValueKind == System.Text.Json.JsonValueKind.String && decimal.TryParse(pp.GetString(), out var pd2)) price = pd2;
             }
 
-            int genre = 0;
+            int gval = 0;
             if (src.TryGetProperty("genre", out var gp))
             {
-                if (gp.ValueKind == System.Text.Json.JsonValueKind.Number && gp.TryGetInt32(out var gi)) genre = gi;
-                else if (gp.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(gp.GetString(), out var gi2)) genre = gi2;
+                if (gp.ValueKind == System.Text.Json.JsonValueKind.Number && gp.TryGetInt32(out var gi)) gval = gi;
+                else if (gp.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(gp.GetString(), out var gi2)) gval = gi2;
             }
 
             object? promotionObj = null;
@@ -154,7 +154,7 @@ public class GameRepository
                 title,
                 description,
                 price,
-                genre,
+                genre = gval,
                 promotion = promotionObj,
                 score = hit.Score
             });
