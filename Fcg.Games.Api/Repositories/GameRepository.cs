@@ -29,7 +29,7 @@ public class GameRepository
         }
         catch (Exception ex)
         {
-            
+            // ignore
         }
 
         return game;
@@ -54,7 +54,7 @@ public class GameRepository
         }
         catch (Exception)
         {
-
+            // ignore
         }
 
         return true;
@@ -79,29 +79,37 @@ public class GameRepository
         var hits = (await _elastic.SearchGamesAdvancedAsync(q, genre)).ToList();
         if (!hits.Any()) return Enumerable.Empty<object>();
 
-        // Extract ids from hits
-        var ids = new List<Guid>();
+        // Extract ids from hits (for promotions and results)
+        var idsAll = new List<Guid>();
         foreach (var hit in hits)
         {
             var src = hit.Source;
             if (src.TryGetProperty("id", out var idProp))
             {
                 string? s = idProp.ValueKind == System.Text.Json.JsonValueKind.String ? idProp.GetString() : idProp.ToString();
-                if (Guid.TryParse(s, out var gid)) ids.Add(gid);
+                if (Guid.TryParse(s, out var gid)) idsAll.Add(gid);
             }
         }
 
-        // Log search hits to analytics index
+        // Log search hits to analytics index: only the top hit (best score)
         try
         {
-            await _elastic.LogSearchHitsAsync(ids);
+            var topHit = hits.OrderByDescending(h => h.Score ?? 0).FirstOrDefault();
+            if (topHit != null && topHit.Source.TryGetProperty("id", out var topIdProp))
+            {
+                string? sTop = topIdProp.ValueKind == System.Text.Json.JsonValueKind.String ? topIdProp.GetString() : topIdProp.ToString();
+                if (Guid.TryParse(sTop, out var topGuid))
+                {
+                    await _elastic.LogSearchHitsAsync(new[] { topGuid });
+                }
+            }
         }
-        catch (Exception ex)
+        catch
         {
             // swallow logging errors
         }
 
-        var promos = ids.Any() ? (await _promotionRepo.GetActivePromotionsForGamesAsync(ids)).ToList() : new List<Promotion>();
+        var promos = idsAll.Any() ? (await _promotionRepo.GetActivePromotionsForGamesAsync(idsAll)).ToList() : new List<Promotion>();
 
         var results = new List<object>();
         foreach (var hit in hits)
