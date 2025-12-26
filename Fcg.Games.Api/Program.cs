@@ -1,17 +1,18 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Net.Http.Headers;
-using System.Text;
 using Fcg.Games.Api.Data;
 using Fcg.Games.Api.Models;
 using Fcg.Games.Api.Repositories;
 using Fcg.Games.Api.Services;
 using Microsoft.AspNetCore.Authentication;
-using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Net.Http.Headers;
+using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -160,6 +161,33 @@ app.MapGet("/api/games/{id}", async (Guid id, GameRepository repo) =>
 
     return Results.Ok(dto);
 });
+
+// Get multiple games by ids: repeat `gameIds` query parameter for each id
+app.MapGet("/api/games/ids", async ([FromQuery(Name = "gameIds")] Guid[] gameIds, GameRepository repo, PromotionRepository promoRepo) =>
+{
+    if (gameIds == null || gameIds.Length == 0)
+        return Results.BadRequest(new { Message = "Query parameter 'gameIds' is required (repeatable). Example: ?gameIds={guid}&gameIds={guid}" });
+
+    var games = (await repo.GetGamesByIdsAsync(gameIds)).ToList();
+    if (!games.Any()) return Results.NotFound();
+
+    var promos = (await promoRepo.GetActivePromotionsForGamesAsync(games.Select(g => g.Id))).ToList();
+
+    var list = games.Select(g => {
+        var p = promos.FirstOrDefault(x => x.GameId == g.Id);
+        return new
+        {
+            g.Id,
+            g.Title,
+            g.Description,
+            Price = g.Price,
+            Genre = g.Genre,
+            Promotion = p is null ? null : new { p.Id, p.DiscountPercentage, p.StartDate, p.EndDate, IsActive = p.IsActive, DiscountedPrice = Math.Round(g.Price * (1 - p.DiscountPercentage / 100), 2) }
+        };
+    });
+
+    return Results.Ok(list);
+}).AllowAnonymous();
 
 app.MapGet("/api/games", async (GameRepository repo, PromotionRepository promoRepo) =>
 {
