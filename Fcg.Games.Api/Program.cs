@@ -216,7 +216,7 @@ app.MapGet("/api/games/search", async (string name, int? genre, GameRepository r
 
     var results = await repo.SearchAsync(name, genre);
     return Results.Ok(results);
-}).RequireAuthorization();
+}).AllowAnonymous();
 
 // Suggest endpoint: receives ?genre=ID and returns 5 random suggestions
 app.MapGet("/api/games/suggest", async (int genre, GameRepository repo) =>
@@ -230,7 +230,7 @@ app.MapPost("/api/games", async (CreateGameRequest req, GameRepository repo) =>
     var game = new Game { Id = Guid.NewGuid(), Title = req.Title, Description = req.Description, Price = req.Price, Genre = req.Genre };
     var created = await repo.CreateAsync(game);
     return Results.Created($"/api/games/{created.Id}", created);
-}).RequireAuthorization(new AuthorizationPolicyBuilder().RequireRole("Admin").Build());
+}).RequireAuthorization();
 
 app.MapDelete("/api/games/{id}", async (Guid id, GameRepository repo) =>
 {
@@ -300,6 +300,29 @@ app.MapGet("/api/games/top-searched", async (int? size, GameRepository repo) =>
     var results = await repo.GetTopSearchedAsync(s);
     return Results.Ok(results);
 }).RequireAuthorization();
+
+// Admin endpoint: reindex all games from Postgres into Elasticsearch
+app.MapPost("/api/admin/reindex-elastic", async (GameRepository repo, Fcg.Games.Api.Services.ElasticClientService elastic, ILogger<Program> logger) =>
+{
+    var games = (await repo.GetAllAsync()).ToList();
+    if (!games.Any()) return Results.Ok(new { Reindexed = 0, Message = "No games found" });
+
+    var success = 0;
+    foreach (var g in games)
+    {
+        try
+        {
+            await elastic.IndexGameAsync(g);
+            success++;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to index game {Id}", g.Id);
+        }
+    }
+
+    return Results.Ok(new { Reindexed = success, Total = games.Count });
+}).RequireAuthorization(new AuthorizationPolicyBuilder().RequireRole("Admin").Build());
 
 app.MapControllers();
 
