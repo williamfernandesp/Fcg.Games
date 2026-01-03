@@ -1,8 +1,0 @@
-{
-  "IsEncrypted": false,
-  "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-    "GAMES_API_BASE": "https://fcggamesapi-g2dcb2fafjftgzfy.chilecentral-01.azurewebsites.net/"
-  }
-}

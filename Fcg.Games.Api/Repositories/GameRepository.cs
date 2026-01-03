@@ -73,24 +73,6 @@ public class GameRepository
         return (game, promo);
     }
 
-    // Return a single random game (and its best active promotion if any)
-    public async Task<(Game? game, Promotion? promotion)> GetRandomWithPromotionAsync()
-    {
-        var game = await _context.Games
-            .OrderBy(g => Guid.NewGuid())
-            .FirstOrDefaultAsync();
-
-        if (game == null) return (null, null);
-
-        var now = DateTime.UtcNow;
-        var promo = await _context.Promotions
-            .Where(p => p.GameId == game.Id && p.StartDate <= now && p.EndDate >= now)
-            .OrderByDescending(p => p.DiscountPercentage)
-            .FirstOrDefaultAsync();
-
-        return (game, promo);
-    }
-
 
     public async Task<IEnumerable<object>> SearchAsync(string q, int? genre = null)
     {
