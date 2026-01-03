@@ -162,6 +162,30 @@ app.MapGet("/api/games/{id}", async (Guid id, GameRepository repo) =>
     return Results.Ok(dto);
 });
 
+// Return a completely random game (same shape as /api/games/{id})
+app.MapGet("/api/games/random", async (GameRepository repo) =>
+{
+    var games = (await repo.GetAllAsync()).ToList();
+    if (!games.Any()) return Results.NotFound();
+
+    var idx = Random.Shared.Next(games.Count);
+    var selected = games[idx];
+
+    var (game, promo) = await repo.GetByIdWithPromotionAsync(selected.Id);
+    if (game is null) return Results.NotFound();
+
+    var dto = new {
+        game.Id,
+        game.Title,
+        game.Description,
+        Price = game.Price,
+        Genre = game.Genre,
+        Promotion = promo is null ? null : new { promo.Id, promo.DiscountPercentage, promo.StartDate, promo.EndDate, IsActive = promo.IsActive, DiscountedPrice = Math.Round(game.Price * (1 - promo.DiscountPercentage / 100), 2) }
+    };
+
+    return Results.Ok(dto);
+}).AllowAnonymous();
+
 // Get multiple games by ids: repeat `gameIds` query parameter for each id
 app.MapGet("/api/games/ids", async ([FromQuery(Name = "gameIds")] Guid[] gameIds, GameRepository repo, PromotionRepository promoRepo) =>
 {
