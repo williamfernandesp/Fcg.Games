@@ -142,8 +142,9 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Map endpoints (preserve all endpoints from original project)
-app.MapGet("/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
+
+// Games-specific health endpoint following the same pattern as other /api/games endpoints
+app.MapGet("/api/games/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 
 app.MapGet("/api/games/{id}", async (Guid id, GameRepository repo) =>
 {
