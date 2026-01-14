@@ -2,6 +2,8 @@ using Fcg.Games.Api.Data;
 using Fcg.Games.Api.Models;
 using Fcg.Games.Api.Repositories;
 using Fcg.Games.Api.Services;
+using Fcg.Games.Api.Consumers;
+using MassTransit;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -25,6 +27,30 @@ builder.Services.Configure<ElasticSettings>(builder.Configuration.GetSection("El
 var esSettings = builder.Configuration.GetSection("ElasticSettings").Get<ElasticSettings>() ?? new ElasticSettings();
 builder.Services.AddSingleton(esSettings);
 builder.Services.AddSingleton<ElasticClientService>();
+
+builder.Services.AddMassTransit(x =>
+{
+    x.AddConsumer<GamePurchaseRequestedConsumer>();
+
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var host = builder.Configuration["RabbitMq:Host"] ?? "localhost";
+        var vhost = builder.Configuration["RabbitMq:VirtualHost"] ?? "/";
+        var username = builder.Configuration["RabbitMq:Username"] ?? "guest";
+        var password = builder.Configuration["RabbitMq:Password"] ?? "guest";
+
+        cfg.Host(host, vhost, h =>
+        {
+            h.Username(username);
+            h.Password(password);
+        });
+
+        cfg.ReceiveEndpoint("fcg-games-game-purchase-requested", e =>
+        {
+            e.ConfigureConsumer<GamePurchaseRequestedConsumer>(context);
+        });
+    });
+});
 
 builder.Services.AddSwaggerGen(c =>
 {
