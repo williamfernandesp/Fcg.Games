@@ -153,11 +153,12 @@ builder.Services.AddHttpClient<UserClient>(client => {
 var app = builder.Build();
 
 // Apply migrations at startup (recommended for managed DB like Neon during early stages)
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<GamesDbContext>();
-    db.Database.Migrate();
-}
+// Commented out for Docker - run migrations manually if needed
+// using (var scope = app.Services.CreateScope())
+// {
+//     var db = scope.ServiceProvider.GetRequiredService<GamesDbContext>();
+//     db.Database.Migrate();
+// }
 
 if (app.Environment.IsDevelopment())
 {
