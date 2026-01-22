@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Fcg.Payment\src\Fcg.Contracts\Fcg.Contracts.csproj" />
+    <ProjectReference Include="..\..\Fcg.Shared\Fcg.Observability\Fcg.Observability.csproj" />
   </ItemGroup>
 
 </Project>

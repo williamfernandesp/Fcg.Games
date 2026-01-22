@@ -3,6 +3,7 @@ using Fcg.Games.Api.Models;
 using Fcg.Games.Api.Repositories;
 using Fcg.Games.Api.Services;
 using Fcg.Games.Api.Consumers;
+using Fcg.Observability;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -17,6 +18,12 @@ using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add OpenTelemetry observability
+builder.Services.AddObservability(builder.Configuration, "fcg-games");
+
+// Add health checks
+builder.Services.AddHealthChecks();
 
 // Add services
 builder.Services.AddControllers();
@@ -375,6 +382,9 @@ app.MapPost("/api/admin/reindex-elastic", async (GameRepository repo, Fcg.Games.
 
     return Results.Ok(new { Reindexed = success, Total = games.Count });
 }).RequireAuthorization(new AuthorizationPolicyBuilder().RequireRole("Admin").Build());
+
+// Add observability endpoints (health checks, metrics)
+app.UseObservabilityEndpoints();
 
 app.MapControllers();
 
